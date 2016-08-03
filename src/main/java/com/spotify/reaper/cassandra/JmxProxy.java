@@ -42,14 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import javax.management.InstanceNotFoundException;
-import javax.management.JMX;
-import javax.management.ListenerNotFoundException;
-import javax.management.MBeanServerConnection;
-import javax.management.MalformedObjectNameException;
-import javax.management.Notification;
-import javax.management.NotificationListener;
-import javax.management.ObjectName;
+import javax.management.*;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
@@ -64,6 +57,7 @@ public class JmxProxy implements NotificationListener, AutoCloseable {
   private static final int JMX_PORT = 7199;
   private static final String JMX_URL = "service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi";
   private static final String SS_OBJECT_NAME = "org.apache.cassandra.db:type=StorageService";
+  private static final String COMPACTION_PENDINGTASKS = "org.apache.cassandra.metrics:name=PendingTasks,type=Compaction";
   private static final String AES_OBJECT_NAME =
       "org.apache.cassandra.internal:type=AntiEntropySessions";
 
@@ -254,9 +248,14 @@ public class JmxProxy implements NotificationListener, AutoCloseable {
   /**
    * @return number of pending compactions on the node this proxy is connected to
    */
-  public int getPendingCompactions() {
+  public int getPendingCompactions() throws RuntimeException {
     checkNotNull(cmProxy, "Looks like the proxy is not connected");
-    return cmProxy.getPendingTasks();
+    try {
+      return (Integer) jmxConnector.getMBeanServerConnection().getAttribute(new ObjectName(COMPACTION_PENDINGTASKS), "Value");
+    } catch (Exception e) {
+      e.printStackTrace();
+      throw new RuntimeException("Error fetching pending tasks", e);
+    }
   }
 
   /**
@@ -349,7 +348,7 @@ public class JmxProxy implements NotificationListener, AutoCloseable {
     if (repairParallelism.equals(RepairParallelism.DATACENTER_AWARE)) {
       if (canUseDatacenterAware) {
         return ssProxy.forceRepairRangeAsync(beginToken.toString(), endToken.toString(), keyspace,
-            repairParallelism.ordinal(), null, null,
+            repairParallelism.ordinal(), null, null, false,
             columnFamilies
                 .toArray(new String[columnFamilies.size()]));
       } else {
@@ -361,7 +360,7 @@ public class JmxProxy implements NotificationListener, AutoCloseable {
     }
     boolean snapshotRepair = repairParallelism.equals(RepairParallelism.SEQUENTIAL);
     return ssProxy.forceRepairRangeAsync(beginToken.toString(), endToken.toString(), keyspace,
-        snapshotRepair, false,
+        snapshotRepair, false, false,
         columnFamilies.toArray(new String[columnFamilies.size()]));
   }
 
