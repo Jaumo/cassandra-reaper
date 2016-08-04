@@ -13,6 +13,7 @@
  */
 package com.spotify.reaper.cassandra;
 
+import com.codahale.metrics.JmxAttributeGauge;
 import com.google.common.base.Function;
 import com.google.common.base.Optional;
 import com.google.common.collect.Lists;
@@ -348,7 +349,7 @@ public class JmxProxy implements NotificationListener, AutoCloseable {
     if (repairParallelism.equals(RepairParallelism.DATACENTER_AWARE)) {
       if (canUseDatacenterAware) {
         return ssProxy.forceRepairRangeAsync(beginToken.toString(), endToken.toString(), keyspace,
-            repairParallelism.ordinal(), null, null, false,
+            repairParallelism.ordinal(), null, null, true,
             columnFamilies
                 .toArray(new String[columnFamilies.size()]));
       } else {
@@ -360,7 +361,7 @@ public class JmxProxy implements NotificationListener, AutoCloseable {
     }
     boolean snapshotRepair = repairParallelism.equals(RepairParallelism.SEQUENTIAL);
     return ssProxy.forceRepairRangeAsync(beginToken.toString(), endToken.toString(), keyspace,
-        snapshotRepair, false, false,
+        snapshotRepair, false, true,
         columnFamilies.toArray(new String[columnFamilies.size()]));
   }
 
